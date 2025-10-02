@@ -1,3 +1,4 @@
+#完成所有挑战脚本 - 此脚本不依赖PySFS
 import requests
 
 planets = requests.get("http://127.0.0.1:27772/planets").json()
@@ -36,4 +37,4 @@ for i in all_ids:
         "http://127.0.0.1:27772/control",
         json={"method": "CompleteChallenge", "args": [i]}
     )
-    print("Success")
+    print(f"Success: {i}")

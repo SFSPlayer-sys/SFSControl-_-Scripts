@@ -1,3 +1,4 @@
+#自动着陆脚本 - 此脚本不依赖PySFS
 import requests
 import math
 import time
@@ -7,7 +8,7 @@ from typing import Dict, List, Optional
 API_URL = 'http://127.0.0.1:27772/'
 
 # 配置参数
-PHASE2_ALTITUDE = 1750.0#着陆阶段高度
+PHASE2_ALTITUDE = 2500.0#着陆阶段高度
 SLEEP_INTERVAL = 0.01#检测间隔
 MIN_THROTTLE = 0.2
 STAGE_ALTITUDE = 1750.0#分级高度
@@ -107,12 +108,12 @@ def get_periapsis(rocket_id: Optional[str] = None):
 
 def time_warp_plus():
     #多火箭尽量不要用这个函数
-    #data = {"method": "TimewarpPlus", "args": []}
+    data = {"method": "TimewarpPlus", "args": []}
     #requests.post(API_URL + 'control', json=data, timeout=2)
 
 def time_warp_minus():
     #多火箭尽量不要用这个函数
-    #data = {"method": "TimewarpMinus", "args": []}
+    data = {"method": "TimewarpMinus", "args": []}
     #requests.post(API_URL + 'control', json=data, timeout=2)
 
 def get_rocket_list():
@@ -230,16 +231,23 @@ def run_landing_phase(rocket_state: RocketState):
         set_throttle(0, rocket_name)
         main_engine_on(False, rocket_name)
     else:
-        # 只有在不旋转时才点火
-        ratio = min(1.0, max(0.0, speed / rocket_state.safe_speed))
-        throttle = MIN_THROTTLE + (1.0 - MIN_THROTTLE) * (ratio ** 2)
-        throttle = min(throttle, 0.5)
-        if speed < MIN_ENGINE_SPEED:
-            set_throttle(0, rocket_name)
-            main_engine_on(False, rocket_name)
-        else:
+        # 使用改进的节流阀算法
+        if speed > MIN_ENGINE_SPEED:
+            # 基于超出最小发动机速度的部分计算节流阀
+            ratio = min(1.0, max(0.0, (speed - MIN_ENGINE_SPEED) / 20.0))
+            throttle = MIN_THROTTLE + (0.6 - MIN_THROTTLE) * ratio
             set_throttle(throttle, rocket_name)
             main_engine_on(True, rocket_name)
+        else:
+            # 速度已经很低，精细控制
+            if speed < rocket_state.safe_speed:
+                # 极低速度时完全关闭
+                set_throttle(0, rocket_name)
+                main_engine_on(False, rocket_name)
+            else:
+                # 保持极小推力防止坠落
+                set_throttle(0.1, rocket_name)
+                main_engine_on(True, rocket_name)
     
     # 展开着陆架
     if altitude < STAGE_ALTITUDE and not rocket_state.staged:
